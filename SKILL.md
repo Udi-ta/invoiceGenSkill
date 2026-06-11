@@ -9,6 +9,21 @@ version: 1.0.0
 ## Overview
 Generate professional invoice images from JSON data using HTML Canvas. Creates pixel-perfect invoice layouts that can be downloaded as PNG images.
 
+## ⚠️ CRITICAL IMPLEMENTATION NOTES
+
+### 1. CSS Must Be Embedded Inline
+**ALWAYS embed CSS inline!** The template uses `<link rel="stylesheet" href="invoice-styles.css">` which will NOT work because the CSS file is in the `templates/` subdirectory. You MUST:
+1. Read both `templates/invoice-template.html` AND `templates/invoice-styles.css`
+2. Replace the `<link>` tag with `<style>` tags containing the CSS content
+3. This ensures proper centering and styling of the invoice
+
+**Without embedded CSS, the invoice will not be centered and styling will be broken.**
+
+### 2. File Naming Convention
+**Output filename MUST be the invoice ID only** (e.g., `INV-20260611-7401.html`), NOT `invoice-INV-20260611-7401.html`.
+- ✅ Correct: `INV-20260611-7401.html`
+- ❌ Wrong: `invoice-INV-20260611-7401.html`
+
 ## When to Use This Skill
 Activate this skill when the user needs to:
 - Generate invoice images from JSON data
@@ -105,14 +120,23 @@ Ensure all required fields are present and properly formatted:
 ### Step 2: Load Template
 Read the invoice template from `templates/invoice-template.html`
 
-### Step 3: Inject Data
+**IMPORTANT:** The template uses an external CSS link (`<link rel="stylesheet" href="invoice-styles.css">`). You MUST replace this with embedded inline CSS from `templates/invoice-styles.css` to ensure proper styling and centering. The CSS file is in a subdirectory and won't load correctly with a relative path.
+
+### Step 3: Embed CSS
+Read the CSS file and embed it inline:
+```javascript
+const css = readFile('templates/invoice-styles.css');
+html = html.replace('<link rel="stylesheet" href="invoice-styles.css">', `<style>${css}</style>`);
+```
+
+### Step 4: Inject Data
 Replace the placeholder JSON in the template with user's data:
 ```javascript
 const invoiceData = JSON.stringify(userData, null, 2);
 html = html.replace('{{INVOICE_DATA}}', invoiceData);
 ```
 
-### Step 4: Generate Image
+### Step 5: Generate Image
 The template automatically:
 - Renders the invoice on HTML Canvas
 - Formats currency values (₹ symbol for Indian Rupees)
@@ -121,7 +145,7 @@ The template automatically:
 - Provides download button
 - Exports as PNG
 
-### Step 5: Deliver Result
+### Step 6: Deliver Result
 Provide the user with:
 - Generated HTML file (can be opened in browser)
 - Instructions to download the image
@@ -131,12 +155,19 @@ Provide the user with:
 
 ### Using the Template
 
-1. **Read the template file:**
+1. **Read the template and CSS files:**
    ```javascript
    const template = readFile('templates/invoice-template.html');
+   const css = readFile('templates/invoice-styles.css');
    ```
 
-2. **Prepare invoice data:**
+2. **Embed CSS inline (CRITICAL STEP):**
+   ```javascript
+   let html = template.replace('<link rel="stylesheet" href="invoice-styles.css">', `<style>${css}</style>`);
+   ```
+   This ensures proper styling and centering since the CSS file is in a subdirectory.
+
+3. **Prepare invoice data:**
    ```javascript
    const invoiceData = {
      invoiceId: "INV-2001",
@@ -145,17 +176,20 @@ Provide the user with:
    };
    ```
 
-3. **Inject data into template:**
+4. **Inject data into template:**
    ```javascript
-   const html = template.replace('{{INVOICE_DATA}}', JSON.stringify(invoiceData, null, 2));
+   html = html.replace('{{INVOICE_DATA}}', JSON.stringify(invoiceData, null, 2));
    ```
 
-4. **Write output file:**
+5. **Write output file with correct naming:**
    ```javascript
-   writeFile('invoice-output.html', html);
+   // Use invoice ID as filename (NOT "invoice-" prefix)
+   const filename = `${invoiceData.invoiceId}.html`;
+   writeFile(filename, html);
    ```
+   **Example:** For invoice ID "INV-20260611-7401", the filename should be `INV-20260611-7401.html`
 
-5. **Instruct user:**
+6. **Instruct user:**
    - Open the HTML file in a browser
    - Click "Download Invoice" button
    - Save the PNG image
@@ -170,6 +204,15 @@ Location: `templates/invoice-template.html`
 - Responsive design
 - Indian Rupee (₹) currency formatting
 - GST calculation display
+- **NOTE:** Uses external CSS link that MUST be replaced with inline CSS
+
+### CSS Styles
+Location: `templates/invoice-styles.css`
+- Modern minimalist design
+- Flexbox centering for proper layout
+- Responsive breakpoints
+- Print-friendly styles
+- **MUST be embedded inline in the HTML file for proper rendering**
 
 ### Example Data
 Location: `examples/sample-invoice.json`
@@ -189,13 +232,15 @@ The template supports customization of:
 
 ## Best Practices
 
-1. **Data Validation**: Always validate JSON structure before generation
-2. **Number Formatting**: Ensure amounts are properly formatted (2 decimal places)
-3. **Currency Display**: Use ₹ symbol for Indian Rupees
-4. **Date Formatting**: Convert ISO date to readable format (DD/MM/YYYY)
-5. **Text Overflow**: Long product names may need truncation or wrapping
-6. **Canvas Size**: Default 800x1100px (A4 ratio), adjustable
-7. **File Naming**: Use invoice ID in filename (e.g., `invoice-INV-2001.png`)
+1. **CSS Embedding**: ALWAYS embed CSS inline by replacing the `<link>` tag with `<style>` tags
+2. **File Naming**: Use invoice ID ONLY as filename (e.g., `INV-2001.html`), NOT `invoice-INV-2001.html`
+3. **Data Validation**: Always validate JSON structure before generation
+4. **Number Formatting**: Ensure amounts are properly formatted (2 decimal places)
+5. **Currency Display**: Use ₹ symbol for Indian Rupees
+6. **Date Formatting**: Convert ISO date to readable format (DD/MM/YYYY)
+7. **Text Overflow**: Long product names may need truncation or wrapping
+8. **Canvas Size**: Default 900x1200px, adjustable
+9. **PNG Download**: The downloaded PNG will use the invoice ID as filename (e.g., `invoice-INV-2001.png`)
 
 ## Example Usage
 
@@ -205,10 +250,12 @@ The template supports customization of:
 **Agent Response:**
 1. Validate the JSON structure
 2. Read the invoice template from `templates/invoice-template.html`
-3. Inject the invoice data into the template
-4. Write the output HTML file
-5. Provide instructions:
-   - "I've created `invoice-INV-2001.html`"
+3. Read the CSS file from `templates/invoice-styles.css`
+4. **Replace the external CSS link with embedded inline CSS** (critical for proper centering)
+5. Inject the invoice data into the template
+6. Write the output HTML file using invoice ID as filename (e.g., `INV-2001.html`)
+7. Provide instructions:
+   - "I've created `INV-2001.html`" (use invoice ID, not "invoice-" prefix)
    - "Open it in your browser"
    - "Click 'Download Invoice' to save as PNG"
 
@@ -220,6 +267,9 @@ The skill generates:
 - **Professional layout**: Clean, organized invoice format
 
 ## Troubleshooting
+
+### Issue: Invoice Not Centered / Styling Missing
+**Solution**: The CSS file must be embedded inline. Read `templates/invoice-styles.css` and replace the `<link>` tag with `<style>` tags containing the CSS content. This is the most common issue.
 
 ### Issue: Text Overlapping
 **Solution**: Adjust line height or font size in template
