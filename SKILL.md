@@ -1,7 +1,7 @@
 ---
 name: invoice-generator
-description: Generate professional invoice images from JSON data using HTML Canvas. Creates pixel-perfect invoice layouts with line items, discounts, GST calculations, and exports to PNG format.
-version: 1.0.0
+description: Generate professional invoice images from JSON data using HTML Canvas. Creates pixel-perfect invoice layouts with line items, discounts, tax calculations, seller/billing sections, and exports to PNG format.
+version: 1.1.0
 ---
 
 # Invoice Generator Skill
@@ -20,9 +20,39 @@ Generate professional invoice images from JSON data using HTML Canvas. Creates p
 **Without embedded CSS, the invoice will not be centered and styling will be broken.**
 
 ### 2. File Naming Convention
-**Output filename MUST be the invoice ID only** (e.g., `INV-20260611-7401.html`), NOT `invoice-INV-20260611-7401.html`.
-- ✅ Correct: `INV-20260611-7401.html`
+**Output filename MUST be the order ID only** (e.g., `order10000.html`), NOT `invoice-INV-20260611-7401.html`.
+- ✅ Correct: `order10000.html`
 - ❌ Wrong: `invoice-INV-20260611-7401.html`
+
+### 3. For Getting Calculated JSON Data
+- if this is a **new order**, first use `invoice_trial2_newOrder` from the `invoice-trial` MCP
+- save the calculated JSON to the orders table using `invoice_trial2_saveOrder`
+- the input JSON data should follow the structure documented in `INVOICEGEN_restapi.md`
+
+### 4. If Only Order ID Is Provided
+- use `invoice_trial2_getInvoiceByOrderId` from the `invoice-trial` MCP
+- pass the order ID inside the required `path` object as a number
+- example:
+  ```json
+  {
+    "path": {
+      "orderId": 10002
+    }
+  }
+  ```
+- the MCP response may return the invoice JSON as an escaped string inside a `message` field
+- parse and normalize that JSON before injecting it into the template
+
+### 5. Seller / Billing Sections Must Always Render
+The invoice must include both:
+- a **FROM** section using seller details
+- a **BILL TO** section using customer details
+
+If seller data is not provided in the invoice JSON, use defaults:
+- Seller name: `Example Enterprises Ltd`
+- Address line 1: `Hypothetical Colony`
+- Address line 2: `Bangalore, India`
+- Email: `billing@exampleenterprises.com`
 
 ## When to Use This Skill
 Activate this skill when the user needs to:
@@ -44,12 +74,14 @@ Activate this skill when the user needs to:
 ## Capabilities
 - Generate invoice images from structured JSON data
 - Support for customer information and contact details
+- Support seller/from details with sensible defaults
 - Line item tables with product details, quantities, and prices
-- Automatic calculation display (subtotal, discounts, GST, total)
+- Automatic calculation display (subtotal, discounts, tax, total)
 - Professional formatting with borders and styling
 - Export to PNG format
 - Customizable colors and fonts
 - Responsive canvas sizing
+- Currency-aware formatting
 
 ## JSON Data Structure
 
@@ -58,9 +90,16 @@ The skill expects invoice data in this format:
 ```json
 {
   "invoiceId": "INV-2001",
+  "orderId": 10002,
   "customer": {
     "name": "ABC Corp",
     "email": "billing@abccorp.com"
+  },
+  "seller": {
+    "name": "Udita Enterprises Ltd",
+    "addressLine1": "Hypothetical Colony",
+    "addressLine2": "Bangalore, India",
+    "email": "billing@uditaenterprises.com"
   },
   "items": [
     {
@@ -85,12 +124,14 @@ The skill expects invoice data in this format:
   "gstPercent": 18,
   "gstAmount": 18630,
   "totalAmount": 122130,
-  "generatedDate": "2026-06-02T11:54:09+05:30"
+  "generatedDate": "2026-06-02T11:54:09+05:30",
+  "currency": "USD",
+  "locale": "en-US",
+  "currencySymbol": "$"
 }
 ```
 
 ### Required Fields
-- `invoiceId`: Unique invoice identifier
 - `customer`: Object with `name` and `email`
 - `items`: Array of line items with:
   - `productId`: Product identifier
@@ -102,20 +143,28 @@ The skill expects invoice data in this format:
 - `invoiceDiscountPercent`: Discount percentage applied
 - `invoiceDiscountAmount`: Calculated discount amount
 - `discountedAmount`: Subtotal after discount
-- `gstPercent`: GST/tax percentage
-- `gstAmount`: Calculated GST amount
+- `gstPercent`: Tax percentage
+- `gstAmount`: Calculated tax amount
 - `totalAmount`: Final total amount
 - `generatedDate`: Invoice generation date (ISO 8601 format)
+
+### Optional Fields
+- `invoiceId`: Unique invoice identifier
+- `orderId`: Order identifier used as fallback display/filename reference
+- `seller`: Seller/from block details
+- `currency`: Currency code such as `USD` or `INR`
+- `locale`: Locale such as `en-US` or `en-IN`
+- `currencySymbol`: Currency symbol override such as `$` or `₹`
 
 ## How It Works
 
 ### Step 1: Validate JSON Data
 Ensure all required fields are present and properly formatted:
-- Invoice ID is a string
 - Customer has name and email
 - Items array is not empty
 - All numeric fields are valid numbers
 - Date is in ISO 8601 format
+- Currency metadata is present when non-default formatting is needed
 
 ### Step 2: Load Template
 Read the invoice template from `templates/invoice-template.html`
@@ -130,18 +179,26 @@ html = html.replace('<link rel="stylesheet" href="invoice-styles.css">', `<style
 ```
 
 ### Step 4: Inject Data
-Replace the placeholder JSON in the template with user's data:
+Replace the placeholder JSON in the template with escaped JSON text:
 ```javascript
-const invoiceData = JSON.stringify(userData, null, 2);
+const invoiceData = JSON.stringify(userData)
+  .replace(/\\/g, '\\\\')
+  .replace(/`/g, '\\`');
 html = html.replace('{{INVOICE_DATA}}', invoiceData);
+```
+
+The template parses it with:
+```javascript
+const invoiceData = JSON.parse(`{{INVOICE_DATA}}`);
 ```
 
 ### Step 5: Generate Image
 The template automatically:
 - Renders the invoice on HTML Canvas
-- Formats currency values (₹ symbol for Indian Rupees)
+- Formats currency values using invoice currency metadata
+- Displays seller and billing sections
 - Displays all line items in a table
-- Shows discount and GST calculations
+- Shows discount and tax calculations
 - Provides download button
 - Exports as PNG
 
@@ -149,7 +206,6 @@ The template automatically:
 Provide the user with:
 - Generated HTML file (can be opened in browser)
 - Instructions to download the image
-- Option to customize further
 
 ## Implementation Guide
 
@@ -165,29 +221,31 @@ Provide the user with:
    ```javascript
    let html = template.replace('<link rel="stylesheet" href="invoice-styles.css">', `<style>${css}</style>`);
    ```
-   This ensures proper styling and centering since the CSS file is in a subdirectory.
 
 3. **Prepare invoice data:**
    ```javascript
    const invoiceData = {
-     invoiceId: "INV-2001",
-     customer: { name: "ABC Corp", email: "billing@abccorp.com" },
-     // ... rest of data
+     orderId: 10002,
+     customer: { name: "Global Enterprises", email: "payments@globalent.com" },
+     currency: "USD",
+     locale: "en-US",
+     currencySymbol: "$"
    };
    ```
 
-4. **Inject data into template:**
+4. **Inject data into template safely:**
    ```javascript
-   html = html.replace('{{INVOICE_DATA}}', JSON.stringify(invoiceData, null, 2));
+   const serialized = JSON.stringify(invoiceData)
+     .replace(/\\/g, '\\\\')
+     .replace(/`/g, '\\`');
+   html = html.replace('{{INVOICE_DATA}}', serialized);
    ```
 
 5. **Write output file with correct naming:**
    ```javascript
-   // Use invoice ID as filename (NOT "invoice-" prefix)
-   const filename = `${invoiceData.invoiceId}.html`;
+   const filename = `order${invoiceData.orderId}.html`;
    writeFile(filename, html);
    ```
-   **Example:** For invoice ID "INV-20260611-7401", the filename should be `INV-20260611-7401.html`
 
 6. **Instruct user:**
    - Open the HTML file in a browser
@@ -202,17 +260,18 @@ Location: `templates/invoice-template.html`
 - Automatic rendering on page load
 - Download functionality included
 - Responsive design
-- Indian Rupee (₹) currency formatting
-- GST calculation display
-- **NOTE:** Uses external CSS link that MUST be replaced with inline CSS
+- Currency-aware formatting
+- Seller/from and bill-to sections
+- Uses fallback invoice number from order ID
+- Uses external CSS link that MUST be replaced with inline CSS
 
 ### CSS Styles
 Location: `templates/invoice-styles.css`
 - Modern minimalist design
-- Flexbox centering for proper layout
+- Proper centering for canvas and metadata panels
 - Responsive breakpoints
 - Print-friendly styles
-- **MUST be embedded inline in the HTML file for proper rendering**
+- MUST be embedded inline in the HTML file for proper rendering
 
 ### Example Data
 Location: `examples/sample-invoice.json`
@@ -223,68 +282,70 @@ Location: `examples/sample-invoice.json`
 ## Customization Options
 
 The template supports customization of:
-- **Colors**: Header background, text colors, borders
+- **Colors**: Header text, borders, table fills
 - **Fonts**: Font family, sizes, weights
 - **Layout**: Canvas dimensions, spacing, margins
-- **Currency**: Default is ₹ (INR), can be changed
-- **Company Info**: Add company name, logo, address
+- **Currency**: Controlled by invoice JSON
+- **Company Info**: Seller block can be overridden per invoice
 - **Styling**: Border styles, table formatting
 
 ## Best Practices
 
-1. **CSS Embedding**: ALWAYS embed CSS inline by replacing the `<link>` tag with `<style>` tags
-2. **File Naming**: Use invoice ID ONLY as filename (e.g., `INV-2001.html`), NOT `invoice-INV-2001.html`
+1. **CSS Embedding**: Always embed CSS inline by replacing the `<link>` tag with `<style>` tags
+2. **File Naming**: Use order ID only as filename when the request is order-based, e.g. `order10002.html`
 3. **Data Validation**: Always validate JSON structure before generation
-4. **Number Formatting**: Ensure amounts are properly formatted (2 decimal places)
-5. **Currency Display**: Use ₹ symbol for Indian Rupees
-6. **Date Formatting**: Convert ISO date to readable format (DD/MM/YYYY)
-7. **Text Overflow**: Long product names may need truncation or wrapping
+4. **Number Formatting**: Ensure amounts are properly formatted with 2 decimal places
+5. **Currency Display**: Use invoice-provided currency metadata, do not assume INR
+6. **Date Formatting**: Convert ISO date to readable format
+7. **Text Overflow**: Wrap or truncate long product names in the canvas table
 8. **Canvas Size**: Default 900x1200px, adjustable
-9. **PNG Download**: The downloaded PNG will use the invoice ID as filename (e.g., `invoice-INV-2001.png`)
+9. **Billing Blocks**: Always render both FROM and BILL TO sections
 
 ## Example Usage
 
 **User Request:**
-"Generate an invoice image from this JSON data: [provides JSON]"
+"hey give me invoice for order 10002"
 
-**Agent Response:**
-1. Validate the JSON structure
-2. Read the invoice template from `templates/invoice-template.html`
-3. Read the CSS file from `templates/invoice-styles.css`
-4. **Replace the external CSS link with embedded inline CSS** (critical for proper centering)
-5. Inject the invoice data into the template
-6. Write the output HTML file using invoice ID as filename (e.g., `INV-2001.html`)
-7. Provide instructions:
-   - "I've created `INV-2001.html`" (use invoice ID, not "invoice-" prefix)
-   - "Open it in your browser"
-   - "Click 'Download Invoice' to save as PNG"
+**Agent Response Flow:**
+1. Call `invoice_trial2_getInvoiceByOrderId`
+2. Parse the returned invoice JSON
+3. Add currency metadata if needed
+4. Read `templates/invoice-template.html`
+5. Read `templates/invoice-styles.css`
+6. Replace the external CSS link with embedded inline CSS
+7. Inject the invoice data into the template
+8. Write the output HTML file using order ID as filename, e.g. `order10002.html`
+9. Tell the user to open the file and download the PNG if needed
 
 ## Output Format
 The skill generates:
 - **HTML file**: Can be opened in any browser
-- **PNG image**: Downloaded via browser (800x1100px default)
+- **PNG image**: Downloaded via browser
 - **High quality**: Suitable for printing and digital use
 - **Professional layout**: Clean, organized invoice format
 
 ## Troubleshooting
 
 ### Issue: Invoice Not Centered / Styling Missing
-**Solution**: The CSS file must be embedded inline. Read `templates/invoice-styles.css` and replace the `<link>` tag with `<style>` tags containing the CSS content. This is the most common issue.
+**Solution:** The CSS file must be embedded inline. Read `templates/invoice-styles.css` and replace the `<link>` tag with `<style>` tags containing the CSS content.
 
 ### Issue: Text Overlapping
-**Solution**: Adjust line height or font size in template
+**Solution:** Wrap long product names and rebalance column widths in the canvas layout.
 
 ### Issue: Items Not Showing
-**Solution**: Verify items array structure matches expected format
+**Solution:** Verify items array structure matches expected format.
 
 ### Issue: Currency Symbol Wrong
-**Solution**: Template uses ₹ by default; modify template for other currencies
+**Solution:** Set `currency`, `locale`, and `currencySymbol` in the invoice JSON.
 
-### Issue: Date Format Incorrect
-**Solution**: Ensure date is in ISO 8601 format; template converts to DD/MM/YYYY
+### Issue: Invoice Number Missing
+**Solution:** Fall back to `ORDER-{orderId}` when `invoiceId` is absent.
+
+### Issue: Seller Details Missing
+**Solution:** Use default seller values when `seller` is not provided.
 
 ### Issue: Download Not Working
-**Solution**: Check browser permissions for file downloads
+**Solution:** Check browser permissions for file downloads.
 
 ## Advanced Features
 
@@ -292,14 +353,14 @@ The skill generates:
 For multiple invoices:
 1. Loop through array of invoice JSON objects
 2. Generate each invoice sequentially
-3. Name files using invoice IDs
+3. Name files using order IDs or invoice IDs based on request context
 4. Collect all generated files
 
 ### Custom Branding
 To add company information:
-1. Modify template to include company section
-2. Add company data to JSON structure
-3. Template will render company details in header
+1. Add a `seller` object to the invoice JSON
+2. Override default seller values
+3. Template will render company details in header section
 
 ### PDF Export
 For PDF output:
@@ -310,7 +371,7 @@ For PDF output:
 ## Limitations
 - Requires browser to render and download
 - Canvas size limited by browser memory
-- No automatic PDF generation (PNG only)
+- No automatic PDF generation
 - Single-page invoices only
 - No interactive elements in final image
 
@@ -320,4 +381,4 @@ For PDF output:
 - **xlsx**: For spreadsheet-based invoicing
 
 ## Version
-1.0.0 - Initial release
+1.1.0 - Added currency-aware formatting, seller defaults, order-based retrieval guidance, and improved layout rules

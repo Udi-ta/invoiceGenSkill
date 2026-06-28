@@ -1,52 +1,33 @@
 {
-  "invoiceId": "INV-2002",
-  "customer": {
-    "name": "ABC Corp",
-    "email": "billing@abccorp.com"
-  },
-  "items": [
-    {
-      "productId": "P101",
-      "productName": "Enterprise Software License",
-      "quantity": 2,
-      "unitPrice": 45000,
-      "lineTotal": 90000
+    "orderId": 10006,
+    "currencyId": "USD",
+    "customer": {
+        "id": "CUS-1001",
+        "name": "ABC Corp",
+        "email": "billing@abccorp.com"
     },
-    {
-      "productId": "P102",
-      "productName": "Professional Services Package",
-      "quantity": 1,
-      "unitPrice": 25000,
-      "lineTotal": 25000
-    },
-    {
-      "productId": "P103",
-      "productName": "Cloud Storage Add-on",
-      "quantity": 3,
-      "unitPrice": 5000,
-      "lineTotal": 15000
-    },
-    {
-      "productId": "P104",
-      "productName": "Annual Support Plan",
-      "quantity": 2,
-      "unitPrice": 12000,
-      "lineTotal": 24000
-    },
-    {
-      "productId": "P105",
-      "productName": "Integration Toolkit",
-      "quantity": 1,
-      "unitPrice": 8000,
-      "lineTotal": 8000
-    }
-  ],
-  "subtotal": 162000,
-  "invoiceDiscountPercent": 10,
-  "invoiceDiscountAmount": 16200,
-  "discountedAmount": 145800,
-  "gstPercent": 18,
-  "gstAmount": 26244,
-  "totalAmount": 172044,
-  "generatedDate": "2026-06-02T11:54:09+05:30"
+    "items": [
+        {
+            "productId": "P101",
+            "productName": "Samsung 5-Star Refrigerator 260L",
+            "quantity": 2,
+            "unitPrice": 28500,
+            "lineTotal": 57000
+        },
+        {
+            "productId": "P102",
+            "productName": "LG Front Load Washing Machine 7kg",
+            "quantity": 1,
+            "unitPrice": 32000,
+            "lineTotal": 32000
+        }
+    ],
+    "subtotal": 89000,
+    "invoiceDiscountPercent": 10,
+    "invoiceDiscountAmount": 8900,
+    "discountedAmount": 80100,
+    "gstPercent": 9,
+    "gstAmount": 7209,
+    "totalAmount": 87309,
+    "generatedDate": "2026-06-23T15:19:28.062789+05:30"
 }
