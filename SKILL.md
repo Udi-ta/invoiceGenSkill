@@ -1,13 +1,13 @@
 ---
 name: invoice-generator
-description: Generate professional invoice images from JSON data using HTML Canvas. Creates pixel-perfect invoice layouts with line items, discounts, tax calculations, seller/billing sections, and exports to PNG format.
+description: Generate and retrieve professional invoice documents from order data or order IDs using HTML Canvas. Use when the user asks to generate, create, produce, make, show, get, fetch, view, or display an invoice — for any order number, order ID, customer, or JSON data. Also use for converting invoices to PNG or image format, creating printable invoices, or batch generating multiple invoices. Trigger phrases include "generate invoice", "create invoice", "invoice for order", "get invoice", "show invoice", "make invoice", "invoice image", "invoice to PNG", "invoice from JSON", "produce invoice", "invoice document", "invoice for customer", "invoice number", "fetch invoice".
 version: 1.1.0
 ---
 
 # Invoice Generator Skill
 
 ## Overview
-Generate professional invoice images from JSON data using HTML Canvas. Creates pixel-perfect invoice layouts that can be downloaded as PNG images.
+Generate professional invoice documents from order data or order IDs using HTML Canvas. Fetches order data via the invoice-automation MCP when only an order ID is provided, then reads the workspace template, embeds CSS inline, injects the invoice data, and writes a ready-to-open HTML file that renders and downloads the invoice as a PNG.
 
 ## ⚠️ CRITICAL IMPLEMENTATION NOTES
 
@@ -56,13 +56,25 @@ If seller data is not provided in the invoice JSON, use defaults:
 
 ## When to Use This Skill
 Activate this skill when the user needs to:
+- Generate or retrieve invoice documents from an order ID or order number
 - Generate invoice images from JSON data
 - Create printable invoices programmatically
 - Convert invoice data to image format
 - Produce professional invoice documents
 - Batch generate multiple invoices
+- Show, fetch, view, or display an invoice for a customer or order
 
 **Trigger phrases:**
+- "generate invoice"
+- "generate invoice for order"
+- "invoice for order [number]"
+- "get invoice"
+- "show invoice"
+- "fetch invoice"
+- "view invoice"
+- "create invoice"
+- "produce invoice"
+- "make invoice"
 - "generate invoice image"
 - "create invoice from JSON"
 - "invoice generator"
@@ -70,6 +82,7 @@ Activate this skill when the user needs to:
 - "convert invoice to image"
 - "invoice to PNG"
 - "create invoice document"
+- "invoice for customer"
 
 ## Capabilities
 - Generate invoice images from structured JSON data
