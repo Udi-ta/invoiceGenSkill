@@ -7,7 +7,7 @@ version: 1.1.0
 # Invoice Generator Skill
 
 ## Overview
-Generate professional invoice documents from order data or order IDs using HTML Canvas. Fetches order data via the invoice-automation MCP when only an order ID is provided, then reads the workspace template, embeds CSS inline, injects the invoice data, and writes a ready-to-open HTML file that renders and downloads the invoice as a PNG.
+Generate professional invoice documents from order data or order IDs using HTML Canvas. Reads the workspace template, embeds CSS inline, injects the invoice data, and writes a ready-to-open HTML file that renders and downloads the invoice as a PNG. When an order ID is provided instead of raw JSON, fetch the invoice data from your configured backend or MCP before proceeding.
 
 ## ⚠️ CRITICAL IMPLEMENTATION NOTES
 
@@ -20,28 +20,28 @@ Generate professional invoice documents from order data or order IDs using HTML 
 **Without embedded CSS, the invoice will not be centered and styling will be broken.**
 
 ### 2. File Naming Convention
-**Output filename MUST be the order ID only** (e.g., `order10000.html`), NOT `invoice-INV-20260611-7401.html`.
+**Output filename MUST be the order ID only** (e.g., `order10000.html`)
 - ✅ Correct: `order10000.html`
 - ❌ Wrong: `invoice-INV-20260611-7401.html`
 
 ### 3. For Getting Calculated JSON Data
-- if this is a **new order**, first use `invoice_trial2_newOrder` from the `invoice-trial` MCP
-- save the calculated JSON to the orders table using `invoice_trial2_saveOrder`
-- the input JSON data should follow the structure documented in `INVOICEGEN_restapi.md`
+- If this is a **new order** (raw line-item data provided), call your backend's order-creation/enrichment endpoint to compute totals, apply discounts, and calculate taxes before generating the invoice.
+- Save the enriched JSON to your orders store if persistence is required.
+- The input JSON must follow the structure described in the **JSON Data Structure** section below — no external API reference file is needed.
 
 ### 4. If Only Order ID Is Provided
-- use `invoice_trial2_getInvoiceByOrderId` from the `invoice-trial` MCP
-- pass the order ID inside the required `path` object as a number
-- example:
-  ```json
-  {
-    "path": {
-      "orderId": 10002
-    }
+- Fetch the invoice JSON from your configured backend or MCP tool (e.g., a `getInvoiceByOrderId` operation).
+- Pass the order ID as required by your backend (commonly as a path or query parameter).
+- The response may return the invoice JSON as an escaped string inside a wrapper field (e.g., `message`). Parse and normalise it before injecting it into the template.
+
+**Example MCP call pattern:**
+```json
+{
+  "path": {
+    "orderId": 10002
   }
-  ```
-- the MCP response may return the invoice JSON as an escaped string inside a `message` field
-- parse and normalize that JSON before injecting it into the template
+}
+```
 
 ### 5. Seller / Billing Sections Must Always Render
 The invoice must include both:
@@ -50,9 +50,9 @@ The invoice must include both:
 
 If seller data is not provided in the invoice JSON, use defaults:
 - Seller name: `Example Enterprises Ltd`
-- Address line 1: `Hypothetical Colony`
-- Address line 2: `Bangalore, India`
-- Email: `billing@exampleenterprises.com`
+- Address line 1: `123 Business Street`
+- Address line 2: `City, Country`
+- Email: `billing@example.com`
 
 ## When to Use This Skill
 Activate this skill when the user needs to:
@@ -109,10 +109,10 @@ The skill expects invoice data in this format:
     "email": "billing@abccorp.com"
   },
   "seller": {
-    "name": "Udita Enterprises Ltd",
-    "addressLine1": "Hypothetical Colony",
-    "addressLine2": "Bangalore, India",
-    "email": "billing@uditaenterprises.com"
+    "name": "Example Enterprises Ltd",
+    "addressLine1": "123 Business Street",
+    "addressLine2": "City, Country",
+    "email": "billing@example.com"
   },
   "items": [
     {
@@ -140,7 +140,6 @@ The skill expects invoice data in this format:
   "generatedDate": "2026-06-02T11:54:09+05:30",
   "currency": "USD",
   "locale": "en-US",
-  "currencySymbol": "$"
 }
 ```
 
@@ -320,9 +319,9 @@ The template supports customization of:
 "hey give me invoice for order 10002"
 
 **Agent Response Flow:**
-1. Call `invoice_trial2_getInvoiceByOrderId`
-2. Parse the returned invoice JSON
-3. Add currency metadata if needed
+1. Call your backend/MCP `getInvoiceByOrderId` with the order ID
+2. Parse the returned invoice JSON (unwrap from any wrapper field if needed)
+3. Add currency metadata if missing
 4. Read `templates/invoice-template.html`
 5. Read `templates/invoice-styles.css`
 6. Replace the external CSS link with embedded inline CSS
